@@ -1,11 +1,60 @@
 const util = require('util');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
+const { Op } = require('sequelize');
 
 const uploadPromise = util.promisify(cloudinary.uploader.upload);
+const deletePromise = util.promisify(cloudinary.uploader.destroy);
 
-const { Post } = require('../models');
 
+const { Friend, User, Post, Like, Comment, sequelize } = require('../models');
+
+
+exports.getAllPost = async (req, res, next) => {
+    try {
+
+
+        const friend = await Friend.findAll({
+            where: {
+                [Op.or]: [
+                    { requestToId: req.user.id },
+                    { requestFromId: req.user.id }
+                ]
+            }
+        });
+
+        const userIds = friend.reduce((acc, item) => {
+
+            if (req.user.id === item.requestFromId) {
+                acc.push(item.requestToId)
+            } else {
+                acc.push(item.requestFromId)
+            }
+            return acc;
+        }, [req.user.id])
+
+        const posts = await Post.findAll({
+            where: { userId: userIds },
+            include: [{
+                model: User,
+                attributes: ['id', 'firstName', 'lastName']
+            },
+            {
+                model: Comment,
+                include: {
+                    model: User,
+                    attributes: ['id', 'firstName', 'lastName']
+                }
+            }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+
+        res.status(200).json({ posts })
+    } catch (err) {
+        next(err);
+    }
+}
 
 exports.createPost = async (req, res, next) => {
     try {
@@ -28,6 +77,27 @@ exports.createPost = async (req, res, next) => {
 
         res.status(200).json({ post })
     } catch (err) {
+        next(err)
+    }
+}
+
+exports.deletePost = async (req, res, next) => {
+    const transaction = await sequelize.transaction();
+    try {
+        const { id } = req.params;
+        const post = await Post.findOne({ where: { id } })
+        if (!post) {
+            return res.status(400).json({ message: 'post not found' })
+        }
+
+        await Like.destroy({ where: { postId: id } }, { transaction });
+        await Comment.destroy({ where: { postId: id } }, { transaction });
+        await Post.destroy({ where: { id } }, { transaction });
+        await transaction.commit();
+        res.status(204).json({ message: 'the post is successfully deleted' });
+
+    } catch (err) {
+        await transaction.rollback();
         next(err)
     }
 }

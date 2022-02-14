@@ -5,6 +5,7 @@ const cors = require('cors');
 const userRoute = require('./routes/userRoute');
 const friendRoute = require('./routes/friendRoute');
 const postRoute = require('./routes/postRoute');
+const commentRoute = require('./routes/commentRoute');
 
 const app = express();
 
@@ -15,7 +16,7 @@ app.use('/static', express.static('public/images'));
 app.use('/users', userRoute);
 app.use('/friends', friendRoute);
 app.use('/posts', postRoute)
-
+app.use('/comments', commentRoute);
 
 app.use((req, res) => {
     res.status(404).json({ message: 'resource not found on this server' });
