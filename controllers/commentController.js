@@ -47,3 +47,26 @@ exports.createComment = async (req, res, next) => {
         next(err);
     }
 }
+
+exports.deleteComment = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const comment = await Comment.findOne({ where: { id: id } });
+
+        if (!comment) {
+            return res.status(400).json({ message: 'comment not found' });
+        }
+
+        if (req.user.id !== comment.userId) {
+            res.status(403).json({ message: 'cannot delete this comment' });
+        }
+
+        await comment.destroy();
+
+        res.status(204).json();
+
+
+    } catch (err) {
+        next(err)
+    }
+}
